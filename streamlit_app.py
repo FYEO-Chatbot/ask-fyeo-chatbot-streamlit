@@ -127,19 +127,27 @@ def get_response(query, transformer_model, stemmer_model, data, pattern_embeddin
 def response_generator(response):
     for word in response.split():
         yield word + " "
-        time.sleep(0.05)    
+        time.sleep(0.05)   
+
+def write_stream(stream):
+    result = ""
+    container = st.empty()
+    for chunk in stream:
+        result += chunk
+        container.write(result, unsafe_allow_html=True) 
         
 def startConversation():
     return False
 
 def form_callback():
-    if not student_number or not first_name or not last_name or not program or not email:
+    print("FORM: ", st.session_state.form_student_number, st.session_state.form_first_name, st.session_state.form_last_name, st.session_state.form_program, st.session_state.form_email)
+    if not st.session_state.form_student_number or not st.session_state.form_first_name or not st.session_state.form_last_name or not st.session_state.form_program or not st.session_state.form_email:
         st.write(f":red[Error: Missing Information]") 
     
-    elif len(student_number) != 9 and student_number.isnumeric():
+    elif not st.session_state.form_student_number.isnumeric():
         st.write(f":red[Error: Invalid Student Number]")
     
-    elif email.find("@") == -1 or email.lower().split("@")[1]  != "ryerson.ca" and email.lower().split("@")[1] != "torontomu.ca":
+    elif st.session_state.form_email.find("@") == -1 or st.session_state.form_email.lower().split("@")[1]  != "ryerson.ca" and st.session_state.form_email.lower().split("@")[1] != "torontomu.ca":
         st.write(f":red[Error: Invalid Email]")
         
     else:    
@@ -147,17 +155,34 @@ def form_callback():
         #     startConversation()
         #     raise Exception('Invalid details')
             
-            st.session_state.student_number = student_number
-            st.session_state.first_name = first_name
-            st.session_state.last_name = last_name
-            st.session_state.program = program
-            st.session_state.email = email
+            st.session_state.student_number = st.session_state.form_student_number
+            st.session_state.first_name = st.session_state.form_first_name
+            st.session_state.last_name = st.session_state.form_last_name
+            st.session_state.program = st.session_state.form_program
+            st.session_state.email = st.session_state.form_email
             st.session_state.conversation_mode = True
             st.session_state.disabled = True
         except Exception as e:
             st.write(f":red[Error: {str(e)}]")
-
-        
+            
+def feedback_callback():
+    feedback_response = None
+    feedback = "No"
+    print("FEEDBACK", st.session_state.form_feedback)  
+    if st.session_state.form_feedback is not None:
+        if st.session_state.form_feedback == 1:
+            feedback = "Yes"
+        feedback_response = f"You selected: {feedback}. Ask me another question!" 
+        with st.chat_message("assistant"):
+            write_stream(response_generator(feedback_response))
+    else:
+        feedback_response = f"You provided no feedback, Ask me another question!" 
+        with st.chat_message("assistant"):
+            write_stream(response_generator(feedback_response))
+            
+    st.session_state.messages.append({"role": "assistant", "content": feedback_response }) 
+            
+            
 setup()
 
 print("HELLO WORLD")
@@ -201,19 +226,20 @@ if "disabled" not in st.session_state:
     
 
 if not st.session_state.conversation_mode:
-    with st.form("student_details",clear_on_submit=True):
-        student_number = st.text_input("Student Number")
-        first_name = st.text_input("First Name", "")
-        last_name = st.text_input("Last Name", "")
+    with st.form("student_details", clear_on_submit = True):
+        student_number = st.text_input("Student Number", key="form_student_number")
+        first_name = st.text_input("First Name", key="form_first_name")
+        last_name = st.text_input("Last Name", key="form_last_name")
         program = st.selectbox(
             "Select Program",
             ("Aerospace", "Biomedical", "Chemical", "Civil", "Computer", "Electrical" , "Industrial", "Mechanical" ),
+            key="form_program"
         )
   
-        email = st.text_input("Email", "")
+        email = st.text_input("Email", key="form_email")
 
         # Every form must have a submit button.
-        submitted = st.form_submit_button("Submit" , on_click=form_callback, args=())         
+        submitted = st.form_submit_button("Submit" , on_click=form_callback)         
           
 elif st.session_state.conversation_mode:
     print(st.session_state.student_number, st.session_state.first_name, st.session_state.last_name, st.session_state.program, st.session_state.email)
@@ -270,16 +296,29 @@ elif st.session_state.conversation_mode:
 
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
-            st.markdown(response, unsafe_allow_html=True)
-
+            write_stream(response_generator(response))
+            
+        st.session_state.feedback_mode = True
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": response, "tag" : tag })
-        st.session_state.feedback_mode = True
         
-                   
         
+    if st.session_state.feedback_mode:
+        get_feedback = "Was I able to answer your question?"    
+        feedback_response = None
+        with st.chat_message("assistant"):
+            write_stream(response_generator(get_feedback))     
+        st.session_state.messages.append({"role": "assistant", "content": get_feedback })
+          
+        with st.form("student_feedback"):
+            feedback = st.feedback("thumbs", key="form_feedback")  
+             
+            # Every form must have a submit button.
+            submitted = st.form_submit_button("Submit", on_click=feedback_callback)
+           
+        
+        st.session_state.feedback_mode = False
             
-        
 
 
     # print(st.session_state.messages)
