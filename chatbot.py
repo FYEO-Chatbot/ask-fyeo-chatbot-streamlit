@@ -119,37 +119,62 @@ def get_response(query, transformer_model, stemmer_model, data, pattern_embeddin
                 return  (target_tag, f"{resp}")
         
     return default_answer    
-
-
-# Streamed response emulator
-def response_generator(response):
-    for word in response.split():
-        yield word + " "
-        time.sleep(0.05)   
-
-def write_stream(stream):
-    result = ""
-    container = st.empty()
-    for chunk in stream:
-        result += chunk
-        container.write(result, unsafe_allow_html=True) 
         
-def startConversation(url):
+def start_conversation(url):
+    try:
+        resp = requests.post(url, json={
+            "student_id": st.session_state.form_student_number, 
+            "firstname" : st.session_state.form_first_name,
+            "lastname" : st.session_state.form_last_name,
+            "program" : st.session_state.form_program,
+            "email" : st.session_state.form_email
+        })
     
-    resp = requests.post(url, json={
-        "student_id": st.session_state.form_student_number, 
-        "firstname" : st.session_state.form_first_name,
-        "lastname" : st.session_state.form_last_name,
-        "program" : st.session_state.form_program,
-        "email" : st.session_state.form_email
-    })
+        resp.raise_for_status() 
+        data = resp.json()
+        conversation = data["conversation"]
+        print("CONVERSATION", conversation)
+        st.session_state.conversation_id = conversation["id"] 
+    except Exception as e:
+        print("ERROR: ", e)
+        
+
+def chatbot_answer(url, query, tag, response):
+    try:
+        if not st.session_state.conversation_id:
+            return
+        resp = requests.post(url, json={
+            "conversation_id": st.session_state.conversation_id, 
+            "question": query,
+            "tag": tag,
+            "response": response
+        })
     
-    resp.raise_for_status() 
-    data = resp.json()
-    conversation = data["conversation"]
+        resp.raise_for_status() 
+        data = resp.json()
+        query = data["query"]
+        print("QUERY", query)
+        st.session_state.query_id = query["id"] 
+    except Exception as e:
+        print("ERROR: ", e)
+        
+        
+def resolve_query(url):
+    try:
+        if st.session_state.conversation_id and st.session_state.query_id:
+            resp = requests.put(url, json={
+                "conversation_id": st.session_state.conversation_id, 
+                "query_id": st.session_state.query_id,
+            })
+        
+            resp.raise_for_status() 
+            data = resp.json()
+            query = data["query"]
+            print("QUERY", query)
+    except Exception as e:
+        print("ERROR: ", e)
+
     
-    
-    return False
 
 def form_callback():
     print("FORM: ", st.session_state.form_student_number, st.session_state.form_first_name, st.session_state.form_last_name, st.session_state.form_program, st.session_state.form_email)
@@ -163,42 +188,52 @@ def form_callback():
         st.session_state.form_error = f":red[Error: Invalid Email]"
         
     else:    
-        try:
-        #     startConversation()
-        #     raise Exception('Invalid details')
-            
-            st.session_state.student_number = st.session_state.form_student_number
-            st.session_state.first_name = st.session_state.form_first_name
-            st.session_state.last_name = st.session_state.form_last_name
-            st.session_state.program = st.session_state.form_program
-            st.session_state.email = st.session_state.form_email
-            st.session_state.conversation_mode = True
-            st.session_state.disabled = True
-        except Exception as e:
-            st.write(f":red[Error: {str(e)}]")
+        start_conversation(f"{st.session_state.url}/chat/start")
+        st.session_state.student_number = st.session_state.form_student_number
+        st.session_state.first_name = st.session_state.form_first_name
+        st.session_state.last_name = st.session_state.form_last_name
+        st.session_state.program = st.session_state.form_program
+        st.session_state.email = st.session_state.form_email
+        st.session_state.conversation_mode = True
+
             
 def feedback_callback():
     feedback_response = None
     if st.session_state.form_feedback is not None:
         if st.session_state.form_feedback == 1:
             feedback_response = f"You selected: Yes. Ask me another question!" 
+            resolve_query(f"{st.session_state.url}/chat/resolve")
         else:
             feedback_response = f"You selected: No. Try rewording your question and make sure you are asking one question at a time. Ask me again!" 
     else:
         feedback_response = f"You provided no feedback. Ask me another question!" 
             
     st.session_state.messages.append({"role": "assistant", "content": feedback_response }) 
-            
+       
+# Streamed response emulator
+def response_generator(response):
+    for word in response.split():
+        yield word + " "
+        time.sleep(0.05)   
+
+def write_stream(stream):
+    result = ""
+    container = st.empty()
+    for chunk in stream:
+        result += chunk
+        container.write(result, unsafe_allow_html=True)      
             
 setup()
 
 print("HELLO WORLD")
-url = "https://ask-fyeo-chatbot-68o6.onrender.com"
+if "url" not in st.session_state: 
+    st.session_state.url = "https://ask-fyeo-chatbot-68o6.onrender.com"
+    
 if "token" not in st.session_state:
-    st.session_state.token = authenticate(f"{url}/login")
+    st.session_state.token = authenticate(f"{st.session_state.url}/login")
 
 
-data = get_data(f"{url}/faq", st.session_state.token)
+data = get_data(f"{st.session_state.url}/faq", st.session_state.token)
 
 pattern_tag_map = {}
 all_patterns = []
@@ -218,6 +253,12 @@ stemmer_model = load_stemmer_model()
 pattern_embeddings = get_pattern_embeddings(transformer_model, all_patterns)
 
 st.title("Ask FYEO")
+
+if "conversation_id" not in st.session_state:
+    st.session_state.conversation_id = None
+    
+if "query_id" not in st.session_state:
+    st.session_state.query_id = None    
 
 if "conversation_mode" not in st.session_state:
     st.session_state.conversation_mode = False
@@ -268,7 +309,8 @@ elif st.session_state.conversation_mode:
             st.markdown(prompt)
         
         tag, response = get_response(prompt, transformer_model, stemmer_model, data, pattern_embeddings, all_patterns)
-
+        chatbot_answer(f"{st.session_state.url}/chat/answer", prompt, tag, response)
+            
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
             write_stream(response_generator(response))
