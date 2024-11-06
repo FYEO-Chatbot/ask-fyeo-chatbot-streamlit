@@ -7,10 +7,8 @@ import re
 import os
 from sentence_transformers import SentenceTransformer, util
 import nltk
-from nltk.stem import WordNetLemmatizer
 from nltk.stem.porter import PorterStemmer
 from dotenv import load_dotenv
-from streamlit_js_eval import streamlit_js_eval
 
     
 load_dotenv()
@@ -136,19 +134,33 @@ def write_stream(stream):
         result += chunk
         container.write(result, unsafe_allow_html=True) 
         
-def startConversation():
+def startConversation(url):
+    
+    resp = requests.post(url, json={
+        "student_id": st.session_state.form_student_number, 
+        "firstname" : st.session_state.form_first_name,
+        "lastname" : st.session_state.form_last_name,
+        "program" : st.session_state.form_program,
+        "email" : st.session_state.form_email
+    })
+    
+    resp.raise_for_status() 
+    data = resp.json()
+    conversation = data["conversation"]
+    
+    
     return False
 
 def form_callback():
     print("FORM: ", st.session_state.form_student_number, st.session_state.form_first_name, st.session_state.form_last_name, st.session_state.form_program, st.session_state.form_email)
     if not st.session_state.form_student_number or not st.session_state.form_first_name or not st.session_state.form_last_name or not st.session_state.form_program or not st.session_state.form_email:
-        st.write(f":red[Error: Missing Information]") 
+        st.session_state.form_error = f":red[Error: Missing Information]" 
     
     elif not st.session_state.form_student_number.isnumeric():
-        st.write(f":red[Error: Invalid Student Number]")
+        st.session_state.form_error =  f":red[Error: Invalid Student Number]"
     
     elif st.session_state.form_email.find("@") == -1 or st.session_state.form_email.lower().split("@")[1]  != "ryerson.ca" and st.session_state.form_email.lower().split("@")[1] != "torontomu.ca":
-        st.write(f":red[Error: Invalid Email]")
+        st.session_state.form_error = f":red[Error: Invalid Email]"
         
     else:    
         try:
@@ -167,18 +179,13 @@ def form_callback():
             
 def feedback_callback():
     feedback_response = None
-    feedback = "No"
-    print("FEEDBACK", st.session_state.form_feedback)  
     if st.session_state.form_feedback is not None:
         if st.session_state.form_feedback == 1:
-            feedback = "Yes"
-        feedback_response = f"You selected: {feedback}. Ask me another question!" 
-        with st.chat_message("assistant"):
-            write_stream(response_generator(feedback_response))
+            feedback_response = f"You selected: Yes. Ask me another question!" 
+        else:
+            feedback_response = f"You selected: No. Try rewording your question and make sure you are asking one question at a time. Ask me again!" 
     else:
-        feedback_response = f"You provided no feedback, Ask me another question!" 
-        with st.chat_message("assistant"):
-            write_stream(response_generator(feedback_response))
+        feedback_response = f"You provided no feedback. Ask me another question!" 
             
     st.session_state.messages.append({"role": "assistant", "content": feedback_response }) 
             
@@ -218,12 +225,8 @@ if "conversation_mode" not in st.session_state:
 if "feedback_mode" not in st.session_state:
     st.session_state.feedback_mode = False    
     
-if "finish_mode" not in st.session_state:
-    st.session_state.finish_mode = False        
-    
-if "disabled" not in st.session_state:
-    st.session_state.disabled = False    
-    
+if "form_error" not in st.session_state:
+    st.session_state.form_error = ""    
 
 if not st.session_state.conversation_mode:
     with st.form("student_details", clear_on_submit = True):
@@ -238,6 +241,8 @@ if not st.session_state.conversation_mode:
   
         email = st.text_input("Email", key="form_email")
 
+        if st.session_state.form_error:
+            st.write(st.session_state.form_error)    
         # Every form must have a submit button.
         submitted = st.form_submit_button("Submit" , on_click=form_callback)         
           
@@ -252,36 +257,6 @@ elif st.session_state.conversation_mode:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"], unsafe_allow_html=True)
-            
-#     if st.session_state.feedback_mode:
-#         get_feedback = "Was I able to answer your question?"    
-#         feedback_response = None
-#         with st.chat_message("assistant"):
-#             st.markdown(get_feedback)
-            
-#         with st.chat_message("user"):
-#             sentiment_mapping = [":material/thumb_down:", ":material/thumb_up:"]
-#             feedback = st.feedback("thumbs")
-#             print("FEEDBACK", feedback)
-#             if feedback is not None:
-#                 feedback_response = f"You selected: {sentiment_mapping[feedback]}" 
-#                 st.markdown(feedback_response)
-                
-              
-        
-#         st.session_state.messages.append({"role": "assistant", "content": get_feedback })   
-#         if feedback_response is not None:    
-#             st.session_state.messages.append({"role": "assistant", "content": feedback_response })  
-       
-#         st.session_state.feedback_mode = False
-#         st.session_state.finish_mode = True
-        
-    # elif st.session_state.finish_mode:
-    #     continue_conversation = "Please ask me another question!"
-    #     with st.chat_message("assistant"):
-    #         st.markdown(continue_conversation)  
-    #     st.session_state.messages.append({"role": "assistant", "content": continue_conversation }) 
-    #     st.session_state.finish_mode = False    
             
     # Accept user input
     if prompt := st.chat_input("Ask me your question!"):
@@ -319,6 +294,3 @@ elif st.session_state.conversation_mode:
         
         st.session_state.feedback_mode = False
             
-
-
-    # print(st.session_state.messages)
