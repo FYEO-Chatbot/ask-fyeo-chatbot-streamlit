@@ -252,7 +252,18 @@ stemmer_model = load_stemmer_model()
 
 pattern_embeddings = get_pattern_embeddings(transformer_model, all_patterns)
 
-st.title("Ask FYEO")
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True) 
+
+col1, col2= st.columns(spec=[0.1, 0.9],vertical_alignment="bottom", gap="medium")
+col1.image("ChatbotMain.png", width=80)
+col2.header("FYEO Chatbot")
+
 
 if "conversation_id" not in st.session_state:
     st.session_state.conversation_id = None
