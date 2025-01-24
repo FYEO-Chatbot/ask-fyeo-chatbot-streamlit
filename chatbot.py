@@ -82,7 +82,7 @@ def analyze_faq(pattern_tag_map, all_patterns, pattern_embeddings):
             target_tag = pattern_tag_map[target_pattern]
     
             if target_score > 0.9 and target_tag != tag:
-                print(target_score, pattern)
+                # print(target_score, pattern)
                 duplicates.append((target_tag, target_pattern, tag, pattern, target_score))
             
     print("FOUND THE FOLLOWING DUPLICATES")
@@ -96,9 +96,8 @@ def tokenize(sentence):
        
 def remove_punc(text):
     stop_punc_words = set(list(string.punctuation))
-    filtered_text = [token for token in text.split() if token not in stop_punc_words]
-    
-    return " ".join(filtered_text)       
+    filtered_text = "".join([char for char in text if char not in stop_punc_words])
+    return filtered_text       
 
 def check_response(tag, patterns, question, response, stemmer):
     '''
@@ -121,7 +120,7 @@ def check_response(tag, patterns, question, response, stemmer):
     
 def get_response(query, transformer_model, stemmer_model, data, pattern_embeddings, all_patterns):
     default_answer = ("", "Hmm... I do not understand that question. If I cannot answer your question you can email firstyeareng@torontomu.ca or stop by our office (located: ENG340A) Monday to Friday from 9 am to 4 pm. Please try again or ask a different question.")
- 
+    query = remove_punc(query.lower())
     print("QUERY:", query)
     query_embedding = transformer_model.encode(query)    
 
@@ -140,12 +139,11 @@ def get_response(query, transformer_model, stemmer_model, data, pattern_embeddin
     #     print(score, pattern)
         
     target_pattern, target_score = pattern_score_pairs[0]
+    target_tag = pattern_tag_map[target_pattern]
+    result = (target_tag, target_pattern, target_score)
+    print("RESULT",result)
     
-    if target_score > 0.9:
-        target_tag = pattern_tag_map[target_pattern]
-        result = (target_tag, target_pattern, target_score)
-        print("FINAL ANSWER", result)
-    
+    if target_score > 0.7:
         for faq in data :
             tag = faq["tag"]
             patterns = faq["patterns"]
@@ -154,7 +152,6 @@ def get_response(query, transformer_model, stemmer_model, data, pattern_embeddin
                 resp = random.choice(responses)     
                 if check_response(tag, patterns, query, resp, stemmer_model):
                     return  (target_tag, f"{resp}")
-    print("FINAL ANSWER: None")    
     return default_answer    
         
 def start_conversation(url):
