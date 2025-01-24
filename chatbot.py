@@ -57,6 +57,40 @@ def load_transformer_model():
 def load_stemmer_model():
     return PorterStemmer() 
 
+def analyze_faq(pattern_tag_map, all_patterns, pattern_embeddings):
+
+    duplicates = []
+
+    for i in range(len(pattern_embeddings)):
+        query_embedding = pattern_embeddings[i]
+        pattern = all_patterns[i]
+        tag = pattern_tag_map[pattern]
+        
+        # scores = util.dot_score(query_embedding, pattern_embeddings)[0].cpu().tolist()
+        
+        scores = util.cos_sim(query_embedding, pattern_embeddings)[0].cpu().tolist()
+    
+        pattern_score_pairs = list(zip(all_patterns, scores))
+        
+        #Sort by decreasing score
+        pattern_score_pairs = sorted(pattern_score_pairs, key=lambda x: x[1], reverse=True)
+        
+        #Output passages & scores
+        # print(f"TOP DOT SCORES FOR: {pattern} - {tag}")
+        for target_pattern, target_score in pattern_score_pairs[:10]:
+
+            target_tag = pattern_tag_map[target_pattern]
+    
+            if target_score > 0.9 and target_tag != tag:
+                print(target_score, pattern)
+                duplicates.append((target_tag, target_pattern, tag, pattern, target_score))
+            
+    print("FOUND THE FOLLOWING DUPLICATES")
+    for dup in duplicates:
+        print(dup)
+            
+    return
+
 def tokenize(sentence):
     return nltk.word_tokenize(sentence)
        
@@ -86,8 +120,9 @@ def check_response(tag, patterns, question, response, stemmer):
     return len(found) > 0
     
 def get_response(query, transformer_model, stemmer_model, data, pattern_embeddings, all_patterns):
-    default_answer = ("", "Hmm... I do not understand that question. Please try again or ask a different question")
+    default_answer = ("", "Hmm... I do not understand that question. If I cannot answer your question you can email firstyeareng@torontomu.ca or stop by our office (located: ENG340A) Monday to Friday from 9 am to 4 pm. Please try again or ask a different question.")
  
+    print("QUERY:", query)
     query_embedding = transformer_model.encode(query)    
 
     # similarity = self.sentence_transformer_model.similarity(query_embedding, pattern_embeddings)
@@ -105,19 +140,21 @@ def get_response(query, transformer_model, stemmer_model, data, pattern_embeddin
     #     print(score, pattern)
         
     target_pattern, target_score = pattern_score_pairs[0]
-    target_tag = pattern_tag_map[target_pattern]
-    result = (target_tag, target_pattern, target_score)
-    print("FINAL ANSWER", result)
     
-    for faq in data :
-        tag = faq["tag"]
-        patterns = faq["patterns"]
-        responses = faq["responses"]
-        if target_tag == tag:
-            resp = random.choice(responses)     
-            if check_response(tag, patterns, query, resp, stemmer_model):
-                return  (target_tag, f"{resp}")
-        
+    if target_score > 0.9:
+        target_tag = pattern_tag_map[target_pattern]
+        result = (target_tag, target_pattern, target_score)
+        print("FINAL ANSWER", result)
+    
+        for faq in data :
+            tag = faq["tag"]
+            patterns = faq["patterns"]
+            responses = faq["responses"]
+            if target_tag == tag:
+                resp = random.choice(responses)     
+                if check_response(tag, patterns, query, resp, stemmer_model):
+                    return  (target_tag, f"{resp}")
+    print("FINAL ANSWER: None")    
     return default_answer    
         
 def start_conversation(url):
@@ -133,7 +170,7 @@ def start_conversation(url):
         resp.raise_for_status() 
         data = resp.json()
         conversation = data["conversation"]
-        print("CONVERSATION", conversation)
+        # print("CONVERSATION", conversation)
         st.session_state.conversation_id = conversation["id"] 
     except Exception as e:
         print("ERROR: ", e)
@@ -153,7 +190,7 @@ def chatbot_answer(url, query, tag, response):
         resp.raise_for_status() 
         data = resp.json()
         query = data["query"]
-        print("QUERY", query)
+        # print("QUERY", query)
         st.session_state.query_id = query["id"] 
     except Exception as e:
         print("ERROR: ", e)
@@ -170,14 +207,14 @@ def resolve_query(url):
             resp.raise_for_status() 
             data = resp.json()
             query = data["query"]
-            print("QUERY", query)
+            # print("QUERY", query)
     except Exception as e:
         print("ERROR: ", e)
 
     
 
 def form_callback():
-    print("FORM: ", st.session_state.form_student_number, st.session_state.form_first_name, st.session_state.form_last_name, st.session_state.form_program, st.session_state.form_email)
+    # print("FORM: ", st.session_state.form_student_number, st.session_state.form_first_name, st.session_state.form_last_name, st.session_state.form_program, st.session_state.form_email)
     if not st.session_state.form_student_number or not st.session_state.form_first_name or not st.session_state.form_last_name or not st.session_state.form_program or not st.session_state.form_email:
         st.session_state.form_error = f":red[Error: Missing Information]" 
     
@@ -225,7 +262,7 @@ def write_stream(stream):
             
 setup()
 
-print("HELLO WORLD")
+# print("HELLO WORLD")
 if "url" not in st.session_state: 
     st.session_state.url = "https://ask-fyeo-chatbot-68o6.onrender.com"
     
@@ -251,6 +288,7 @@ transformer_model = load_transformer_model()
 stemmer_model = load_stemmer_model()
 
 pattern_embeddings = get_pattern_embeddings(transformer_model, all_patterns)
+# analyze_faq(pattern_tag_map, all_patterns, pattern_embeddings)
 
 hide_streamlit_style = """
             <style>
@@ -299,7 +337,7 @@ if not st.session_state.conversation_mode:
         submitted = st.form_submit_button("Submit" , on_click=form_callback)         
           
 elif st.session_state.conversation_mode:
-    print(st.session_state.student_number, st.session_state.first_name, st.session_state.last_name, st.session_state.program, st.session_state.email)
+    # print(st.session_state.student_number, st.session_state.first_name, st.session_state.last_name, st.session_state.program, st.session_state.email)
     # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
