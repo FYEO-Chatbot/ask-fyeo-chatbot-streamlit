@@ -188,7 +188,8 @@ def chatbot_answer(url, query, tag, response):
             "conversation_id": st.session_state.conversation_id, 
             "question": query,
             "tag": tag,
-            "response": response
+            "response": response,
+            "for_staff": st.session_state.staff_mode
         })
     
         resp.raise_for_status() 
@@ -348,11 +349,10 @@ if not st.session_state.conversation_mode:
             first_name = st.text_input("First Name", key="form_first_name")
             last_name = st.text_input("Last Name", key="form_last_name")
             email = st.text_input("Email", key="form_email")
-            staff_password = st.text_input("Staff Password", key="form_staff_password")
+            staff_password = st.text_input("Staff Password", key="form_staff_password", type="password")
 
             if st.session_state.form_error:
                 st.write(st.session_state.form_error)    
-            # st.session_state.staff_mode = st.toggle("Staff")
             submitted = st.form_submit_button("Submit" , on_click=staff_form_callback)    
 
     else:
@@ -378,7 +378,10 @@ elif st.session_state.conversation_mode:
     # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
-        st.session_state.messages.append({"role": "assistant", "content": f"Hello {st.session_state.first_name}, it's nice to meet you! I am the FYEO chatbot and I'm here to answer any of your questions about your first year of engineering." })   
+        if st.session_state.staff_mode:
+            st.session_state.messages.append({"role": "assistant", "content": f"Hello {st.session_state.first_name}, it's nice to meet you! I am the FYEO chatbot and I'm here to answer any of your questions about the first-year engineering office." })   
+        else:
+            st.session_state.messages.append({"role": "assistant", "content": f"Hello {st.session_state.first_name}, it's nice to meet you! I am the FYEO chatbot and I'm here to answer any of your questions about your first year of engineering." })   
 
     # Display chat messages from history on app rerun
     for message in st.session_state.messages:
