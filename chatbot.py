@@ -73,39 +73,6 @@ def process_faq_data(faq_data):
     return all_patterns, pattern_tag_map
 
 
-def analyze_faq(pattern_tag_map, all_patterns, pattern_embeddings):
-
-    duplicates = []
-
-    for i in range(len(pattern_embeddings)):
-        query_embedding = pattern_embeddings[i]
-        pattern = all_patterns[i]
-        tag = pattern_tag_map[pattern]
-        
-        # scores = util.dot_score(query_embedding, pattern_embeddings)[0].cpu().tolist()
-        
-        scores = util.cos_sim(query_embedding, pattern_embeddings)[0].cpu().tolist()
-    
-        pattern_score_pairs = list(zip(all_patterns, scores))
-        
-        #Sort by decreasing score
-        pattern_score_pairs = sorted(pattern_score_pairs, key=lambda x: x[1], reverse=True)
-        
-        #Output passages & scores
-        # print(f"TOP DOT SCORES FOR: {pattern} - {tag}")
-        for target_pattern, target_score in pattern_score_pairs[:10]:
-
-            target_tag = pattern_tag_map[target_pattern]
-    
-            if target_score > 0.9 and target_tag != tag:
-                # print(target_score, pattern)
-                duplicates.append((target_tag, target_pattern, tag, pattern, target_score))
-            
-    print("FOUND THE FOLLOWING DUPLICATES")
-    for dup in duplicates:
-        print(dup)
-            
-    return
 
 def tokenize(sentence):
     return nltk.word_tokenize(sentence)
