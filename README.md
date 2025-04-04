@@ -1,7 +1,7 @@
 # Ask-FYEO Chatbot
 
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ask-fyeo.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ask-fyeo-chatbot.streamlit.app/)
 
 ### How to run it on your own machine
 
